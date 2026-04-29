@@ -2,6 +2,7 @@
 
 import { useState, useRef, useCallback } from 'react'
 import { Upload, X, CheckCircle, AlertCircle, Loader2, Terminal, ChevronDown, ChevronUp } from 'lucide-react'
+import { supabase } from '@/lib/supabase'
 
 interface Props {
   onClose: () => void
@@ -12,6 +13,7 @@ export default function UploadModal({ onClose, onSuccess }: Props) {
   const [file, setFile] = useState<File | null>(null)
   const [status, setStatus] = useState<'idle' | 'uploading' | 'success' | 'error'>('idle')
   const [message, setMessage] = useState('')
+  const [progress, setProgress] = useState('')
   const [isDragging, setIsDragging] = useState(false)
   const [showGuide, setShowGuide] = useState(true)
   const inputRef = useRef<HTMLInputElement>(null)
@@ -25,6 +27,7 @@ export default function UploadModal({ onClose, onSuccess }: Props) {
     setFile(f)
     setStatus('idle')
     setMessage('')
+    setProgress('')
   }
 
   const onDrop = useCallback((e: React.DragEvent) => {
@@ -38,37 +41,69 @@ export default function UploadModal({ onClose, onSuccess }: Props) {
   const onUpload = async () => {
     if (!file) return
     setStatus('uploading')
+    setProgress('파일 읽는 중...')
 
     try {
-      // 파일을 텍스트로 읽어서 JSON body로 직접 전송 (multipart 오버헤드 제거)
       const rawText = await file.text()
 
-      // 유효한 JSON인지 먼저 확인
-      let payload: unknown
+      let payload: { week_info: Record<string, string>; rows: Record<string, unknown>[] }
       try { payload = JSON.parse(rawText) } catch {
         throw new Error('JSON 파싱 실패. local_uploader.py 로 생성된 파일인지 확인해주세요.')
       }
-      void payload
 
-      const res = await fetch('/api/upload', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: rawText,
-      })
+      const { week_info, rows } = payload
+      if (!week_info?.week_label || !Array.isArray(rows) || rows.length === 0) {
+        throw new Error('유효하지 않은 데이터 형식입니다.')
+      }
 
-      const resText = await res.text()
-      let json: Record<string, unknown> = {}
-      try { json = JSON.parse(resText) } catch { /* non-JSON response */ }
+      // 1. 업로드 로그 생성
+      setProgress('업로드 로그 생성 중...')
+      const { data: logData, error: logError } = await supabase
+        .from('upload_logs')
+        .insert({
+          filename:   file.name,
+          week_label: week_info.week_label,
+          week_start: week_info.week_start ?? null,
+          week_end:   week_info.week_end   ?? null,
+          row_count:  rows.length,
+        })
+        .select()
+        .single()
 
-      if (!res.ok) {
-        throw new Error((json.error as string) || `서버 오류 HTTP ${res.status}: ${resText.slice(0, 300)}`)
+      if (logError) throw new Error(logError.message)
+
+      // 2. 기존 동일 주차 데이터 삭제
+      setProgress('기존 데이터 삭제 중...')
+      const { error: deleteError } = await supabase
+        .from('sales_weekly')
+        .delete()
+        .eq('week_label', week_info.week_label)
+
+      if (deleteError) throw new Error(deleteError.message)
+
+      // 3. 배치 삽입 (1000행씩, 브라우저에서 직접 Supabase 삽입 → 시간제한 없음)
+      const batchSize = 1000
+      const totalBatches = Math.ceil(rows.length / batchSize)
+
+      for (let i = 0; i < rows.length; i += batchSize) {
+        const batchNum = Math.floor(i / batchSize) + 1
+        setProgress(`데이터 저장 중... ${batchNum}/${totalBatches} (${Math.min(i + batchSize, rows.length).toLocaleString()}/${rows.length.toLocaleString()}행)`)
+
+        const batch = rows.slice(i, i + batchSize).map((r) => ({
+          ...r,
+          upload_id: logData.id,
+        }))
+        const { error } = await supabase.from('sales_weekly').insert(batch)
+        if (error) throw new Error(error.message)
       }
 
       setStatus('success')
-      setMessage(`✅ ${(json.row_count as number).toLocaleString()}개 스타일 업로드 완료 (${json.week_label})`)
-      setTimeout(() => { onSuccess(json.week_label as string); onClose() }, 1800)
+      setProgress('')
+      setMessage(`✅ ${rows.length.toLocaleString()}개 스타일 업로드 완료 (${week_info.week_label})`)
+      setTimeout(() => { onSuccess(week_info.week_label); onClose() }, 1800)
     } catch (err) {
       setStatus('error')
+      setProgress('')
       setMessage(err instanceof Error ? err.message : '업로드 실패 (원인 불명)')
     }
   }
@@ -155,6 +190,14 @@ export default function UploadModal({ onClose, onSuccess }: Props) {
             </div>
           )}
         </div>
+
+        {/* 진행 상황 */}
+        {status === 'uploading' && progress && (
+          <div className="mt-3 flex items-center gap-2 text-sm text-blue-600 bg-blue-50 p-3 rounded-lg">
+            <Loader2 size={14} className="animate-spin shrink-0" />
+            <span>{progress}</span>
+          </div>
+        )}
 
         {/* Status */}
         {message && (
