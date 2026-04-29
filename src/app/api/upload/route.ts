@@ -97,8 +97,17 @@ export async function POST(req: NextRequest) {
     })
   } catch (err) {
     console.error('Upload error:', err)
+    // Supabase PostgrestError 는 Error 인스턴스가 아니므로 .message 직접 추출
+    const errMsg =
+      err instanceof Error
+        ? err.message
+        : typeof (err as { message?: unknown }).message === 'string'
+          ? (err as { message: string; details?: string; code?: string }).message +
+            ((err as { details?: string }).details ? ` (${(err as { details: string }).details})` : '') +
+            ((err as { code?: string }).code ? ` [code: ${(err as { code: string }).code}]` : '')
+          : JSON.stringify(err)
     return NextResponse.json(
-      { error: err instanceof Error ? err.message : '업로드 실패' },
+      { error: errMsg },
       { status: 500 }
     )
   }
