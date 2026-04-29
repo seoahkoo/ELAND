@@ -56,7 +56,8 @@ function parseSheet(ws: XLSX.WorkSheet, dataType: string, periodLabel: string): 
     if (!styleCode) continue
 
     const brand = stripEnglishSuffix(toStr(r[2]))  // openpyxl [3]
-    if (!brand) continue
+    // 빈 값이거나 숫자 코드(0001, 0002 등 시즌코드)면 건너뜀
+    if (!brand || /^\d+$/.test(brand)) continue
 
     result.push({
       week_label:        periodLabel,
