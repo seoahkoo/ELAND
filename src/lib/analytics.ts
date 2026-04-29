@@ -149,6 +149,44 @@ export function calcWeeklyTrend(data: SalesWeekly[]): WeeklyTrend[] {
 }
 
 // ──────────────────────────────────────────────
+//  카테고리별 집계
+// ──────────────────────────────────────────────
+export function calcCategorySummary(data: SalesWeekly[]): BrandSummary[] {
+  const totalReceipt = data.reduce((s, r) => s + r.cum_receipt_amt, 0)
+  const totalSale    = data.reduce((s, r) => s + r.cum_sale_amt, 0)
+  const map = new Map<string, BrandSummary>()
+
+  for (const r of data) {
+    const key = r.category_l || '미분류'
+    if (!map.has(key)) {
+      map.set(key, {
+        brand: key, period_sale_amt: 0, period_receipt_amt: 0,
+        cum_sale_qty: 0, cum_sale_amt: 0, cum_receipt_amt: 0,
+        cum_cost_amt: 0, margin_amt: 0, margin_rate: 0,
+        receipt_share: 0, sale_share: 0, sales_efficiency: 0,
+      })
+    }
+    const c = map.get(key)!
+    c.period_sale_amt   += r.period_sale_amt
+    c.cum_sale_qty      += r.cum_sale_qty
+    c.cum_sale_amt      += r.cum_sale_amt
+    c.cum_receipt_amt   += r.cum_receipt_amt
+    c.cum_cost_amt      += r.cum_cost_amt
+  }
+
+  return Array.from(map.values())
+    .map((c) => {
+      c.margin_amt       = c.cum_sale_amt - c.cum_cost_amt
+      c.margin_rate      = c.cum_sale_amt > 0 ? (c.margin_amt / c.cum_sale_amt) * 100 : 0
+      c.receipt_share    = totalReceipt > 0 ? (c.cum_receipt_amt / totalReceipt) * 100 : 0
+      c.sale_share       = totalSale    > 0 ? (c.cum_sale_amt    / totalSale)    * 100 : 0
+      c.sales_efficiency = c.receipt_share - c.sale_share
+      return c
+    })
+    .sort((a, b) => b.cum_sale_amt - a.cum_sale_amt)
+}
+
+// ──────────────────────────────────────────────
 //  포맷 유틸리티
 // ──────────────────────────────────────────────
 export function formatKRW(n: number): string {

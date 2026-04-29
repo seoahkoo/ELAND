@@ -11,84 +11,63 @@ import BrandBarChart from '@/components/BrandBarChart'
 import RankingTable, { fmtAmt } from '@/components/RankingTable'
 import InsightSection from '@/components/InsightSection'
 import UploadModal from '@/components/UploadModal'
-import { SalesWeekly, BrandSummary, FilterState } from '@/types'
-import {
-  calcKpi, calcBrandSummary, calcProductSummary, calcWeeklyTrend,
-} from '@/lib/analytics'
+import { BrandSummary, ProductSummary, KpiData, WeeklyTrend, FilterState } from '@/types'
 
 type RankTab   = 'brand' | 'product' | 'category'
 type MetricTab = 'cum_sale_amt' | 'margin_amt' | 'margin_rate'
 
+interface SummaryResponse {
+  kpi:        KpiData
+  brands:     BrandSummary[]
+  categories: BrandSummary[]
+  products:   ProductSummary[]
+  trend:      WeeklyTrend[]
+  rowCount:   number
+}
+
+const defaultKpi: KpiData = {
+  totalPeriodSaleAmt: 0, totalCumSaleAmt: 0,
+  totalMarginAmt: 0, marginRate: 0, totalCumReceiptAmt: 0,
+}
+
 export default function Dashboard() {
-  const [allData, setAllData]     = useState<SalesWeekly[]>([])
-  const [weeks, setWeeks]         = useState<string[]>([])
-  const [brands, setBrands]       = useState<string[]>([])
-  const [filter, setFilter]       = useState<FilterState>({ weekLabels: [], brands: [] })
-  const [loading, setLoading]     = useState(false)
-  const [showUpload, setShowUpload] = useState(false)
-  const [copied, setCopied]       = useState(false)
-  const [rankTab, setRankTab]     = useState<RankTab>('brand')
-  const [metricTab, setMetricTab] = useState<MetricTab>('cum_sale_amt')
+  const [summary, setSummary]         = useState<SummaryResponse | null>(null)
+  const [weeks, setWeeks]             = useState<string[]>([])
+  const [brands, setBrands]           = useState<string[]>([])
+  const [filter, setFilter]           = useState<FilterState>({ weekLabels: [], brands: [] })
+  const [loading, setLoading]         = useState(false)
+  const [showUpload, setShowUpload]   = useState(false)
+  const [copied, setCopied]           = useState(false)
+  const [rankTab, setRankTab]         = useState<RankTab>('brand')
+  const [metricTab, setMetricTab]     = useState<MetricTab>('cum_sale_amt')
 
-  // ── 필터링 ──────────────────────────────────
-  const filtered = allData.filter((r) => {
-    const wOk = filter.weekLabels.length === 0 || filter.weekLabels.includes(r.week_label)
-    const bOk = filter.brands.length    === 0 || filter.brands.includes(r.brand)
-    return wOk && bOk
-  })
+  // ── 집계 데이터 (API에서 받아온 것 그대로 사용) ──
+  const kpi            = summary?.kpi        ?? defaultKpi
+  const brandSummary   = summary?.brands     ?? []
+  const categorySummary = summary?.categories ?? []
+  const productSummary = summary?.products   ?? []
+  const weeklyTrend    = summary?.trend      ?? []
 
-  const kpi            = calcKpi(filtered)
-  const brandSummary   = calcBrandSummary(filtered)
-  const productSummary = calcProductSummary(filtered)
-  const weeklyTrend    = calcWeeklyTrend(filtered)
-
-  // 카테고리 집계 (BrandSummary 재활용)
-  const categorySummary: BrandSummary[] = (() => {
-    const totalReceipt = filtered.reduce((s, r) => s + r.cum_receipt_amt, 0)
-    const totalSale    = filtered.reduce((s, r) => s + r.cum_sale_amt, 0)
-    const map = new Map<string, BrandSummary>()
-    for (const r of filtered) {
-      const key = r.category_l || '미분류'
-      if (!map.has(key)) {
-        map.set(key, {
-          brand: key, period_sale_amt: 0, period_receipt_amt: 0,
-          cum_sale_qty: 0, cum_sale_amt: 0, cum_receipt_amt: 0,
-          cum_cost_amt: 0, margin_amt: 0, margin_rate: 0,
-          receipt_share: 0, sale_share: 0, sales_efficiency: 0,
-        })
-      }
-      const c = map.get(key)!
-      c.period_sale_amt   += r.period_sale_amt
-      c.cum_sale_qty      += r.cum_sale_qty
-      c.cum_sale_amt      += r.cum_sale_amt
-      c.cum_receipt_amt   += r.cum_receipt_amt
-      c.cum_cost_amt      += r.cum_cost_amt
-    }
-    return Array.from(map.values()).map((c) => {
-      c.margin_amt      = c.cum_sale_amt - c.cum_cost_amt
-      c.margin_rate     = c.cum_sale_amt > 0 ? (c.margin_amt / c.cum_sale_amt) * 100 : 0
-      c.receipt_share   = totalReceipt > 0 ? (c.cum_receipt_amt / totalReceipt) * 100 : 0
-      c.sale_share      = totalSale    > 0 ? (c.cum_sale_amt    / totalSale)    * 100 : 0
-      c.sales_efficiency = c.receipt_share - c.sale_share
-      return c
-    }).sort((a, b) => b.cum_sale_amt - a.cum_sale_amt)
-  })()
-
-  // ── 데이터 로드 ──────────────────────────────
-  const loadData = useCallback(async () => {
+  // ── 데이터 로드 (필터 변경 시 API 재호출) ──────
+  const loadData = useCallback(async (f?: FilterState) => {
     setLoading(true)
     try {
-      const [salesRes, weeksRes, brandsRes] = await Promise.all([
-        fetch('/api/sales'),
+      const params = new URLSearchParams()
+      if (f?.weekLabels?.length) params.set('weeks',  f.weekLabels.join(','))
+      if (f?.brands?.length)     params.set('brands', f.brands.join(','))
+      const qs = params.toString() ? '?' + params.toString() : ''
+
+      const [summaryRes, weeksRes, brandsRes] = await Promise.all([
+        fetch(`/api/summary${qs}`),
         fetch('/api/weeks'),
         fetch('/api/brands'),
       ])
-      const [salesJson, weeksJson, brandsJson] = await Promise.all([
-        salesRes.json(), weeksRes.json(), brandsRes.json(),
+      const [summaryJson, weeksJson, brandsJson] = await Promise.all([
+        summaryRes.json(), weeksRes.json(), brandsRes.json(),
       ])
-      setAllData(salesJson.data  ?? [])
-      setWeeks(weeksJson.data    ?? [])
-      setBrands(brandsJson.data  ?? [])
+      setSummary(summaryJson)
+      setWeeks(weeksJson.data  ?? [])
+      setBrands(brandsJson.data ?? [])
     } finally {
       setLoading(false)
     }
@@ -96,16 +75,20 @@ export default function Dashboard() {
 
   useEffect(() => { loadData() }, [loadData])
 
-  // ── 핸들러 ───────────────────────────────────
-  const handleReset = () => setFilter({ weekLabels: [], brands: [] })
+  // 필터 변경 → API 재호출
+  const applyFilter = (newFilter: FilterState) => {
+    setFilter(newFilter)
+    loadData(newFilter)
+  }
+  const handleReset = () => applyFilter({ weekLabels: [], brands: [] })
 
+  // ── CSV 다운로드 ──────────────────────────────
   const handleCsvDownload = () => {
-    const header = ['스타일코드', '상품명', '브랜드', 'CD', '대분류', '중분류',
-                    '기간판매량', '기간판매금액', '누적판매량', '누적판매금액',
-                    '누적입고금액', '마진금액', '마진율', '누적판매율', '판매효율']
+    const header = ['스타일코드', '상품명', '브랜드', '대분류', '중분류',
+                    '누적판매량', '누적판매금액', '누적입고금액',
+                    '마진금액', '마진율', '누적판매율', '판매효율']
     const rows = productSummary.map((p) => [
-      p.style_code, p.product_name, p.brand, '', p.category_l, p.category_m,
-      0, 0,
+      p.style_code, p.product_name, p.brand, p.category_l, p.category_m,
       p.cum_sale_qty, p.cum_sale_amt,
       p.cum_receipt_amt,
       p.margin_amt.toFixed(0),
@@ -123,6 +106,7 @@ export default function Dashboard() {
     URL.revokeObjectURL(url)
   }
 
+  // ── 결과 복사 ─────────────────────────────────
   const handleCopy = async () => {
     const wLabel = filter.weekLabels.length ? filter.weekLabels.join(', ') : weeks[0] ?? '전체'
     const text = [
@@ -144,7 +128,7 @@ export default function Dashboard() {
     setTimeout(() => setCopied(false), 2000)
   }
 
-  // ── 컬럼 정의 ────────────────────────────────
+  // ── 컬럼 정의 ─────────────────────────────────
   const brandColumns = [
     { key: 'period_sale_amt',  label: '기간판매액', fmt: fmtAmt },
     { key: 'cum_sale_amt',     label: '누적판매액', fmt: fmtAmt },
@@ -161,6 +145,8 @@ export default function Dashboard() {
     { key: 'margin_rate',      label: '마진율',   fmt: (v: number) => `${v.toFixed(1)}%` },
     { key: 'sales_efficiency', label: '판매효율', fmt: (v: number) => `${v.toFixed(1)}%p` },
   ]
+
+  const hasData = (summary?.rowCount ?? 0) > 0
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -180,12 +166,13 @@ export default function Dashboard() {
               onChange={(e) => {
                 const v = e.target.value
                 if (!v) return
-                setFilter((f) => ({
-                  ...f,
-                  weekLabels: f.weekLabels.includes(v)
-                    ? f.weekLabels.filter((x) => x !== v)
-                    : [...f.weekLabels, v],
-                }))
+                const newFilter = {
+                  ...filter,
+                  weekLabels: filter.weekLabels.includes(v)
+                    ? filter.weekLabels.filter((x) => x !== v)
+                    : [...filter.weekLabels, v],
+                }
+                applyFilter(newFilter)
               }}
             >
               <option value="">
@@ -202,12 +189,13 @@ export default function Dashboard() {
               onChange={(e) => {
                 const v = e.target.value
                 if (!v) return
-                setFilter((f) => ({
-                  ...f,
-                  brands: f.brands.includes(v)
-                    ? f.brands.filter((x) => x !== v)
-                    : [...f.brands, v],
-                }))
+                const newFilter = {
+                  ...filter,
+                  brands: filter.brands.includes(v)
+                    ? filter.brands.filter((x) => x !== v)
+                    : [...filter.brands, v],
+                }
+                applyFilter(newFilter)
               }}
             >
               <option value="">
@@ -225,6 +213,9 @@ export default function Dashboard() {
               >
                 <RefreshCw size={12} /> 초기화
               </button>
+            )}
+            {loading && (
+              <span className="text-xs text-blue-500 animate-pulse">불러오는 중...</span>
             )}
           </div>
 
@@ -257,14 +248,8 @@ export default function Dashboard() {
 
       {/* ── 메인 ── */}
       <main className="max-w-screen-2xl mx-auto px-6 py-6 space-y-6">
-        {loading && (
-          <div className="text-center text-sm text-gray-400 py-2 animate-pulse">
-            데이터 불러오는 중...
-          </div>
-        )}
-
         {/* 빈 상태 */}
-        {allData.length === 0 && !loading && (
+        {!hasData && !loading && (
           <div className="bg-white rounded-xl border-2 border-dashed border-gray-200 p-16 text-center">
             <Upload size={40} className="mx-auto text-gray-300 mb-4" />
             <p className="text-gray-600 font-medium mb-1">업로드된 데이터가 없습니다</p>
@@ -283,7 +268,7 @@ export default function Dashboard() {
           </div>
         )}
 
-        {allData.length > 0 && (
+        {hasData && (
           <>
             {/* KPI 카드 */}
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
@@ -370,13 +355,13 @@ export default function Dashboard() {
                 />
                 <div className="overflow-hidden">
                   {rankTab === 'brand' && (
-                    <RankingTable rows={brandSummary.slice(0, 15)} columns={brandColumns} nameKey="brand" />
+                    <RankingTable rows={brandSummary.slice(0, 25)} columns={brandColumns} nameKey="brand" />
                   )}
                   {rankTab === 'product' && (
-                    <RankingTable rows={productSummary.slice(0, 15)} columns={productColumns} nameKey="product_name" />
+                    <RankingTable rows={productSummary.slice(0, 25)} columns={productColumns} nameKey="product_name" />
                   )}
                   {rankTab === 'category' && (
-                    <RankingTable rows={categorySummary.slice(0, 15)} columns={brandColumns} nameKey="brand" />
+                    <RankingTable rows={categorySummary.slice(0, 25)} columns={brandColumns} nameKey="brand" />
                   )}
                 </div>
               </div>
