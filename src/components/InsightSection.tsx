@@ -97,10 +97,10 @@ export default function InsightSection({ brands, products }: Props) {
         ) : (
           <div className="space-y-3">
             {bestProducts.map((p, i) => (
-              <div key={p.product_code} className="flex items-start gap-2">
+              <div key={p.style_code} className="flex items-start gap-2">
                 <span className="text-xs font-bold text-amber-500 w-4 shrink-0 mt-0.5">{i + 1}</span>
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-gray-800 truncate">{p.style_name || p.product_code}</p>
+                  <p className="text-sm font-medium text-gray-800 truncate">{p.product_name || p.style_code}</p>
                   <p className="text-xs text-gray-400">{p.brand} · {p.category_l}</p>
                 </div>
                 <div className="text-right shrink-0">

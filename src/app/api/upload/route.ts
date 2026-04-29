@@ -1,28 +1,54 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabase } from '@/lib/supabase'
-import { parseExcelFile } from '@/lib/excel-parser'
 
+/**
+ * POST /api/upload
+ *
+ * local_uploader.py 가 생성한 JSON 파일을 받아 Supabase에 저장합니다.
+ *
+ * 요청 형식 (multipart/form-data):
+ *   file: JSON 파일  (Content-Type: application/json or text/plain)
+ *
+ * JSON 구조:
+ *   { week_info: { week_label, week_start, week_end }, rows: [...] }
+ */
 export async function POST(req: NextRequest) {
   try {
     const formData = await req.formData()
-    const file = formData.get('file') as File
-    if (!file) return NextResponse.json({ error: '파일이 없습니다.' }, { status: 400 })
+    const file = formData.get('file') as File | null
+    if (!file) {
+      return NextResponse.json({ error: '파일이 없습니다.' }, { status: 400 })
+    }
 
-    const buffer = await file.arrayBuffer()
-    const { rows, weekInfo, rowCount } = parseExcelFile(buffer)
+    // JSON 파싱
+    const text = await file.text()
+    let payload: { week_info: Record<string, string>; rows: Record<string, unknown>[] }
+    try {
+      payload = JSON.parse(text)
+    } catch {
+      return NextResponse.json(
+        { error: 'JSON 파싱 실패. local_uploader.py 로 생성된 파일인지 확인해주세요.' },
+        { status: 400 }
+      )
+    }
 
-    if (rows.length === 0) {
-      return NextResponse.json({ error: '파싱된 데이터가 없습니다. 파일 형식을 확인해주세요.' }, { status: 400 })
+    const { week_info, rows } = payload
+    if (!week_info?.week_label || !Array.isArray(rows) || rows.length === 0) {
+      return NextResponse.json(
+        { error: '유효하지 않은 데이터 형식입니다.' },
+        { status: 400 }
+      )
     }
 
     // 업로드 로그 생성
     const { data: logData, error: logError } = await supabase
       .from('upload_logs')
       .insert({
-        filename: file.name,
-        week_label: weekInfo.week_label,
-        row_count: rowCount,
-        status: 'success',
+        filename:   file.name,
+        week_label: week_info.week_label,
+        week_start: week_info.week_start ?? null,
+        week_end:   week_info.week_end   ?? null,
+        row_count:  rows.length,
       })
       .select()
       .single()
@@ -33,7 +59,7 @@ export async function POST(req: NextRequest) {
     await supabase
       .from('sales_weekly')
       .delete()
-      .eq('week_label', weekInfo.week_label)
+      .eq('week_label', week_info.week_label)
 
     // 배치 삽입 (500행씩)
     const batchSize = 500
@@ -47,11 +73,11 @@ export async function POST(req: NextRequest) {
     }
 
     return NextResponse.json({
-      success: true,
-      week_label: weekInfo.week_label,
-      week_start: weekInfo.week_start,
-      week_end: weekInfo.week_end,
-      row_count: rowCount,
+      success:    true,
+      week_label: week_info.week_label,
+      week_start: week_info.week_start,
+      week_end:   week_info.week_end,
+      row_count:  rows.length,
     })
   } catch (err) {
     console.error('Upload error:', err)

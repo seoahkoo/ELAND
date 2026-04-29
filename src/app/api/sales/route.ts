@@ -6,7 +6,7 @@ export async function GET(req: NextRequest) {
   const weeks = searchParams.get('weeks')    // 콤마 구분 week_label
   const brands = searchParams.get('brands')  // 콤마 구분 brand
 
-  let query = supabase.from('sales_weekly').select('*').order('week_start', { ascending: true })
+  let query = supabase.from('sales_weekly').select('*').order('week_label', { ascending: true })
 
   if (weeks) {
     query = query.in('week_label', weeks.split(','))
