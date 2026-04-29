@@ -3,7 +3,7 @@
 interface KpiCardProps {
   title: string
   value: string
-  sub?: string
+  sub?: React.ReactNode
   color?: 'blue' | 'green' | 'purple' | 'orange'
   icon?: React.ReactNode
 }

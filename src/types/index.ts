@@ -1,8 +1,9 @@
-// SAP BI 올해 RAW 시트 기반 스타일별 주간 실적
+// SAP BI 올해/전년 RAW 시트 기반 스타일별 주간/월간 실적
 export interface SalesWeekly {
   id: string
   upload_id: string
   week_label: string
+  data_type: string   // 'weekly_current' | 'weekly_prev' | 'monthly_current' | 'monthly_prev'
 
   // 스타일 식별
   style_code: string
@@ -18,7 +19,7 @@ export interface SalesWeekly {
   original_price: number
   current_price: number
 
-  // 기간 데이터 (해당 주차)
+  // 기간 데이터 (해당 주차/월)
   period_sale_qty: number
   period_sale_amt: number
   period_receipt_amt: number
@@ -51,6 +52,7 @@ export interface KpiData {
   totalMarginAmt: number       // 마진금액 (누적판매 - 누적원가)
   marginRate: number           // 마진율 (%)
   totalCumReceiptAmt: number   // 누적 입고금액
+  totalCumSaleQty: number      // 누적 판매수량
 }
 
 export interface BrandSummary {
@@ -66,6 +68,18 @@ export interface BrandSummary {
   receipt_share: number    // 입고비중 (%)
   sale_share: number       // 판매비중 (%)
   sales_efficiency: number // 판매효율 = 입고비중 - 판매비중 (음수 = 효율 우수)
+  cum_sale_rate: number    // 누적판매율 (%)
+  cum_jungpan_rate: number // 누적정판율 (%)
+}
+
+export interface BrandYoY {
+  brand: string
+  current: BrandSummary
+  prev?: BrandSummary
+  sale_growth: number      // 판매금액 성장률 (%)
+  qty_growth: number       // 판매수량 성장률 (%)
+  sale_rate_diff: number   // 판매율 변화 (%p)
+  jungpan_rate_diff: number // 정판율 변화 (%p)
 }
 
 export interface ProductSummary {
@@ -79,6 +93,7 @@ export interface ProductSummary {
   cum_receipt_amt: number
   cum_cost_amt: number
   cum_sale_rate: number
+  cum_jungpan_rate: number
   margin_amt: number
   margin_rate: number
   sales_efficiency: number
