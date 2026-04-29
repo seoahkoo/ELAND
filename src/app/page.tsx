@@ -422,70 +422,120 @@ export default function Dashboard() {
   )
 }
 
-// ── YoY 브랜드 테이블 ─────────────────────────────
+// ── SAP BI 스타일 YoY 브랜드 테이블 ──────────────
 function YoYBrandTable({ data }: { data: BrandYoY[] }) {
+  // 헤더 그룹 정의
+  const groups = [
+    { label: '발주액',    cols: 3 },
+    { label: '입고액',    cols: 3 },
+    { label: '주간매출액', cols: 3 },
+    { label: '누적매출액', cols: 3 },
+    { label: '제조기여이익', cols: 3 },
+    { label: '판매율',    cols: 3 },
+    { label: '정판율',    cols: 3 },
+    { label: '원가율',    cols: 3 },
+    { label: '마진율(TCR)', cols: 3 },
+  ]
+
+  const G = 'bg-slate-100 text-slate-600 font-semibold text-center text-[11px] py-1.5 border-b border-slate-200'
+  const SH = 'text-center text-[10px] text-gray-400 py-1 border-b border-gray-100 whitespace-nowrap'
+  const TD = 'py-1.5 px-1.5 text-right tabular-nums text-[11px] whitespace-nowrap'
+  const GROW = (v: number, hasP: boolean) => !hasP ? (
+    <span className="text-gray-300">-</span>
+  ) : (
+    <span className={`inline-flex items-center gap-0.5 text-[11px] font-semibold ${growthBg(v)}`}>
+      {v > 0 ? <TrendingUp size={8} /> : v < 0 ? <TrendingDown size={8} /> : null}
+      {fmtGrowth(v)}
+    </span>
+  )
+  const DIFF = (v: number, hasP: boolean) => !hasP ? '-' : (
+    <span className={`text-[11px] font-medium ${growthColor(v)}`}>{fmtDiff(v)}</span>
+  )
+
   return (
-    <div className="overflow-x-auto">
-      <table className="w-full text-xs">
+    <div className="overflow-x-auto -mx-1">
+      <table className="text-xs border-collapse min-w-max">
+        {/* 그룹 헤더 */}
         <thead>
-          <tr className="border-b border-gray-100">
-            <th className="text-left py-2 px-2 text-gray-500 font-medium w-5">순위</th>
-            <th className="text-left py-2 px-2 text-gray-500 font-medium">브랜드</th>
-            <th className="text-right py-2 px-2 text-gray-500 font-medium">누적판매액</th>
-            <th className="text-right py-2 px-2 text-gray-500 font-medium">전년</th>
-            <th className="text-right py-2 px-2 text-orange-500 font-medium">성장률</th>
-            <th className="text-right py-2 px-2 text-gray-500 font-medium">판매율</th>
-            <th className="text-right py-2 px-2 text-gray-500 font-medium">전년판매율</th>
-            <th className="text-right py-2 px-2 text-orange-500 font-medium">증감</th>
-            <th className="text-right py-2 px-2 text-gray-500 font-medium">정판율</th>
-            <th className="text-right py-2 px-2 text-gray-500 font-medium">전년정판율</th>
-            <th className="text-right py-2 px-2 text-orange-500 font-medium">증감</th>
-            <th className="text-right py-2 px-2 text-gray-500 font-medium">마진율</th>
+          <tr>
+            <th className={`${G} text-left px-2 sticky left-0 bg-slate-100 z-10`} rowSpan={2}>브랜드</th>
+            {groups.map((g) => (
+              <th key={g.label} className={`${G} px-2 border-l border-slate-200`} colSpan={g.cols}>
+                {g.label}
+              </th>
+            ))}
+          </tr>
+          {/* 서브 헤더 */}
+          <tr>
+            {groups.flatMap((g) => {
+              const isRate = ['판매율','정판율','원가율','마진율(TCR)'].includes(g.label)
+              return [
+                <th key={`${g.label}-c`} className={`${SH} px-2 border-l border-gray-100`}>26년</th>,
+                <th key={`${g.label}-p`} className={`${SH} px-1.5`}>25년</th>,
+                <th key={`${g.label}-d`} className={`${SH} px-1.5 text-orange-400`}>
+                  {isRate ? '차이' : '성장률'}
+                </th>,
+              ]
+            })}
           </tr>
         </thead>
         <tbody>
           {data.map((row, idx) => {
             const c = row.current
             const p = row.prev
+            const hp = !!p
             return (
-              <tr key={row.brand} className="border-b border-gray-50 hover:bg-gray-50">
-                <td className="py-2 px-2 text-gray-400">{idx + 1}</td>
-                <td className="py-2 px-2 font-medium text-gray-800">{row.brand}</td>
-                <td className="py-2 px-2 text-right tabular-nums">{fmtAmt(c.cum_sale_amt)}</td>
-                <td className="py-2 px-2 text-right tabular-nums text-gray-400">
-                  {p ? fmtAmt(p.cum_sale_amt) : '-'}
+              <tr key={row.brand}
+                className={`border-b border-gray-50 hover:bg-blue-50/30 ${idx % 2 === 0 ? '' : 'bg-gray-50/50'}`}>
+                {/* 브랜드명 */}
+                <td className="py-1.5 px-2 text-[11px] font-semibold text-gray-800 sticky left-0 bg-white whitespace-nowrap z-10 border-r border-gray-100">
+                  <span className="text-gray-300 mr-1">{idx + 1}</span>{row.brand}
                 </td>
-                <td className="py-2 px-2 text-right">
-                  {p ? (
-                    <span className={`px-1.5 py-0.5 rounded text-[11px] font-semibold ${growthBg(row.sale_growth)}`}>
-                      {row.sale_growth > 0 ? <TrendingUp size={9} className="inline mr-0.5" /> : <TrendingDown size={9} className="inline mr-0.5" />}
-                      {fmtGrowth(row.sale_growth)}
-                    </span>
-                  ) : <span className="text-gray-300">-</span>}
-                </td>
-                <td className="py-2 px-2 text-right tabular-nums">{c.cum_sale_rate.toFixed(1)}%</td>
-                <td className="py-2 px-2 text-right tabular-nums text-gray-400">
-                  {p ? `${p.cum_sale_rate.toFixed(1)}%` : '-'}
-                </td>
-                <td className="py-2 px-2 text-right">
-                  {p ? (
-                    <span className={growthColor(row.sale_rate_diff)}>
-                      {fmtDiff(row.sale_rate_diff)}
-                    </span>
-                  ) : '-'}
-                </td>
-                <td className="py-2 px-2 text-right tabular-nums">{c.cum_jungpan_rate.toFixed(1)}%</td>
-                <td className="py-2 px-2 text-right tabular-nums text-gray-400">
-                  {p ? `${p.cum_jungpan_rate.toFixed(1)}%` : '-'}
-                </td>
-                <td className="py-2 px-2 text-right">
-                  {p ? (
-                    <span className={growthColor(row.jungpan_rate_diff)}>
-                      {fmtDiff(row.jungpan_rate_diff)}
-                    </span>
-                  ) : '-'}
-                </td>
-                <td className="py-2 px-2 text-right tabular-nums">{c.margin_rate.toFixed(1)}%</td>
+
+                {/* 발주액 */}
+                <td className={`${TD} border-l border-gray-100`}>{fmtAmt(c.order_amt)}</td>
+                <td className={`${TD} text-gray-400`}>{hp ? fmtAmt(p!.order_amt) : '-'}</td>
+                <td className={TD}>{GROW(row.order_growth, hp)}</td>
+
+                {/* 입고액 */}
+                <td className={`${TD} border-l border-gray-100`}>{fmtAmt(c.cum_receipt_amt)}</td>
+                <td className={`${TD} text-gray-400`}>{hp ? fmtAmt(p!.cum_receipt_amt) : '-'}</td>
+                <td className={TD}>{GROW(row.receipt_growth, hp)}</td>
+
+                {/* 주간매출액 */}
+                <td className={`${TD} border-l border-gray-100`}>{fmtAmt(c.period_sale_amt)}</td>
+                <td className={`${TD} text-gray-400`}>{hp ? fmtAmt(p!.period_sale_amt) : '-'}</td>
+                <td className={TD}>{GROW(row.period_sale_growth, hp)}</td>
+
+                {/* 누적매출액 */}
+                <td className={`${TD} border-l border-gray-100 font-medium`}>{fmtAmt(c.cum_sale_amt)}</td>
+                <td className={`${TD} text-gray-400`}>{hp ? fmtAmt(p!.cum_sale_amt) : '-'}</td>
+                <td className={TD}>{GROW(row.cum_sale_growth, hp)}</td>
+
+                {/* 제조기여이익 */}
+                <td className={`${TD} border-l border-gray-100`}>{fmtAmt(c.margin_amt)}</td>
+                <td className={`${TD} text-gray-400`}>{hp ? fmtAmt(p!.margin_amt) : '-'}</td>
+                <td className={TD}>{GROW(row.margin_growth, hp)}</td>
+
+                {/* 판매율 */}
+                <td className={`${TD} border-l border-gray-100`}>{c.cum_sale_rate.toFixed(1)}%</td>
+                <td className={`${TD} text-gray-400`}>{hp ? `${p!.cum_sale_rate.toFixed(1)}%` : '-'}</td>
+                <td className={TD}>{DIFF(row.sale_rate_diff, hp)}</td>
+
+                {/* 정판율 */}
+                <td className={`${TD} border-l border-gray-100`}>{c.cum_jungpan_rate.toFixed(1)}%</td>
+                <td className={`${TD} text-gray-400`}>{hp ? `${p!.cum_jungpan_rate.toFixed(1)}%` : '-'}</td>
+                <td className={TD}>{DIFF(row.jungpan_rate_diff, hp)}</td>
+
+                {/* 원가율 */}
+                <td className={`${TD} border-l border-gray-100`}>{c.cost_rate.toFixed(1)}%</td>
+                <td className={`${TD} text-gray-400`}>{hp ? `${p!.cost_rate.toFixed(1)}%` : '-'}</td>
+                <td className={TD}>{DIFF(row.cost_rate_diff, hp)}</td>
+
+                {/* 마진율 (TCR) */}
+                <td className={`${TD} border-l border-gray-100 font-medium`}>{c.margin_rate.toFixed(1)}%</td>
+                <td className={`${TD} text-gray-400`}>{hp ? `${p!.margin_rate.toFixed(1)}%` : '-'}</td>
+                <td className={TD}>{DIFF(row.margin_rate_diff, hp)}</td>
               </tr>
             )
           })}

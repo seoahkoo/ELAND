@@ -34,6 +34,10 @@ export interface SalesWeekly {
   cum_margin_rate: number
   cum_sale_rate: number
   cum_jungpan_rate: number
+
+  // 발주 / 원가
+  order_amt: number
+  cost_rate_raw: number
 }
 
 export interface UploadLog {
@@ -47,12 +51,13 @@ export interface UploadLog {
 }
 
 export interface KpiData {
-  totalPeriodSaleAmt: number   // 기간 판매금액 (해당 주)
-  totalCumSaleAmt: number      // 누적 판매금액 (YTD)
-  totalMarginAmt: number       // 마진금액 (누적판매 - 누적원가)
-  marginRate: number           // 마진율 (%)
-  totalCumReceiptAmt: number   // 누적 입고금액
-  totalCumSaleQty: number      // 누적 판매수량
+  totalPeriodSaleAmt: number
+  totalCumSaleAmt: number
+  totalMarginAmt: number
+  marginRate: number
+  totalCumReceiptAmt: number
+  totalCumSaleQty: number
+  totalOrderAmt: number
 }
 
 export interface BrandSummary {
@@ -63,23 +68,32 @@ export interface BrandSummary {
   cum_sale_amt: number
   cum_receipt_amt: number
   cum_cost_amt: number
+  order_amt: number
   margin_amt: number
-  margin_rate: number
-  receipt_share: number    // 입고비중 (%)
-  sale_share: number       // 판매비중 (%)
-  sales_efficiency: number // 판매효율 = 입고비중 - 판매비중 (음수 = 효율 우수)
-  cum_sale_rate: number    // 누적판매율 (%)
-  cum_jungpan_rate: number // 누적정판율 (%)
+  margin_rate: number       // (cum_sale - cum_cost) / cum_sale %
+  cost_rate: number         // cum_cost / cum_sale %
+  receipt_share: number
+  sale_share: number
+  sales_efficiency: number
+  cum_sale_rate: number     // 판매율 %
+  cum_jungpan_rate: number  // 정판율 %
 }
 
 export interface BrandYoY {
   brand: string
   current: BrandSummary
   prev?: BrandSummary
-  sale_growth: number      // 판매금액 성장률 (%)
-  qty_growth: number       // 판매수량 성장률 (%)
-  sale_rate_diff: number   // 판매율 변화 (%p)
-  jungpan_rate_diff: number // 정판율 변화 (%p)
+  // 성장률
+  order_growth: number
+  receipt_growth: number
+  period_sale_growth: number
+  cum_sale_growth: number
+  margin_growth: number
+  // 차이
+  sale_rate_diff: number
+  jungpan_rate_diff: number
+  margin_rate_diff: number
+  cost_rate_diff: number
 }
 
 export interface ProductSummary {

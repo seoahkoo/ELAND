@@ -87,6 +87,9 @@ function parseSheet(ws: XLSX.WorkSheet, dataType: string, periodLabel: string): 
       cum_margin_rate:      toNum(r[47]),  // openpyxl [48]
       cum_sale_rate:        toNum(r[32]),  // openpyxl [33]
       cum_jungpan_rate:     toNum(r[35]),  // openpyxl [36]
+      // 발주 / 원가율
+      order_amt:            toNum(r[63]),  // openpyxl [64] 생산오더발주액(최초판매가)
+      cost_rate_raw:        toNum(r[48]),  // openpyxl [49] 원가율(입고대비)
     })
   }
 

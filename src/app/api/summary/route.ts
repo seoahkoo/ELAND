@@ -29,6 +29,7 @@ export async function GET(req: NextRequest) {
     'style_code', 'product_name', 'cum_sale_rate', 'cum_jungpan_rate',
     'period_sale_qty', 'period_sale_amt', 'period_receipt_amt', 'period_cost_amt',
     'cum_sale_qty', 'cum_sale_amt', 'cum_receipt_amt', 'cum_cost_amt',
+    'order_amt', 'cost_rate_raw',
   ].join(',')
 
   // 올해 데이터
