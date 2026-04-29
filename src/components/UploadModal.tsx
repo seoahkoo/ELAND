@@ -38,21 +38,32 @@ export default function UploadModal({ onClose, onSuccess }: Props) {
   const onUpload = async () => {
     if (!file) return
     setStatus('uploading')
-    const form = new FormData()
-    form.append('file', file)
 
     try {
-      const res = await fetch('/api/upload', { method: 'POST', body: form })
+      // 파일을 텍스트로 읽어서 JSON body로 직접 전송 (multipart 오버헤드 제거)
+      const rawText = await file.text()
 
-      // 응답이 JSON이 아닐 수도 있으므로 text 먼저 읽기
-      const text = await res.text()
+      // 유효한 JSON인지 먼저 확인
+      let payload: unknown
+      try { payload = JSON.parse(rawText) } catch {
+        throw new Error('JSON 파싱 실패. local_uploader.py 로 생성된 파일인지 확인해주세요.')
+      }
+      void payload
+
+      const res = await fetch('/api/upload', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: rawText,
+      })
+
+      const resText = await res.text()
       let json: Record<string, unknown> = {}
-      try { json = JSON.parse(text) } catch { /* non-JSON */ }
+      try { json = JSON.parse(resText) } catch { /* non-JSON response */ }
 
       if (!res.ok) {
-        const errMsg = (json.error as string) || `서버 오류 (HTTP ${res.status}): ${text.slice(0, 200)}`
-        throw new Error(errMsg)
+        throw new Error((json.error as string) || `서버 오류 HTTP ${res.status}: ${resText.slice(0, 300)}`)
       }
+
       setStatus('success')
       setMessage(`✅ ${(json.row_count as number).toLocaleString()}개 스타일 업로드 완료 (${json.week_label})`)
       setTimeout(() => { onSuccess(json.week_label as string); onClose() }, 1800)
