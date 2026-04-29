@@ -42,15 +42,23 @@ export default function UploadModal({ onClose, onSuccess }: Props) {
     form.append('file', file)
 
     try {
-      const res  = await fetch('/api/upload', { method: 'POST', body: form })
-      const json = await res.json()
-      if (!res.ok) throw new Error(json.error || '업로드 실패')
+      const res = await fetch('/api/upload', { method: 'POST', body: form })
+
+      // 응답이 JSON이 아닐 수도 있으므로 text 먼저 읽기
+      const text = await res.text()
+      let json: Record<string, unknown> = {}
+      try { json = JSON.parse(text) } catch { /* non-JSON */ }
+
+      if (!res.ok) {
+        const errMsg = (json.error as string) || `서버 오류 (HTTP ${res.status}): ${text.slice(0, 200)}`
+        throw new Error(errMsg)
+      }
       setStatus('success')
       setMessage(`✅ ${(json.row_count as number).toLocaleString()}개 스타일 업로드 완료 (${json.week_label})`)
       setTimeout(() => { onSuccess(json.week_label as string); onClose() }, 1800)
     } catch (err) {
       setStatus('error')
-      setMessage(err instanceof Error ? err.message : '업로드 실패')
+      setMessage(err instanceof Error ? err.message : '업로드 실패 (원인 불명)')
     }
   }
 
