@@ -1,0 +1,32 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python3 -c ' *)",
+      "Bash(python -c ' *)",
+      "Bash(pip install *)",
+      "Bash(pip list *)",
+      "Bash(npx create-next-app@latest . --typescript --tailwind --eslint --app --src-dir --import-alias \"@/*\" --no-turbopack)",
+      "Bash(npm install *)",
+      "Bash(npm list *)",
+      "Bash(npm run *)",
+      "Bash(npx tsc *)",
+      "Bash(node --max-old-space-size=4096 ./node_modules/typescript/bin/tsc --noEmit)",
+      "mcp__Claude_in_Chrome__tabs_context_mcp",
+      "WebFetch(domain:eland-seven.vercel.app)",
+      "WebFetch(domain:vercel.com)",
+      "Bash(cp -r eland-dashboard/src .)",
+      "Bash(cp -r eland-dashboard/public .)",
+      "Bash(ping -n 15 127.0.0.1)",
+      "Bash(ping -n 120 127.0.0.1)",
+      "mcp__Claude_in_Chrome__navigate",
+      "mcp__Claude_in_Chrome__computer",
+      "mcp__Claude_in_Chrome__read_console_messages",
+      "PowerShell(Head -20)",
+      "Bash(dir \"C:\\\\Users\\\\KOO_SEOAH01\\\\Desktop\" /B)",
+      "Bash(dir \"C:\\\\Users\\\\KOO_SEOAH01\\\\Desktop\\\\의류CU 상품실적\" /B)",
+      "Bash(dir \"C:\\\\Users\\\\KOO_SEOAH01\\\\Desktop\\\\클로드코드\" /B)",
+      "Bash(python -c \"import sys; data = sys.stdin.buffer.read\\(\\); print\\(data.decode\\('utf-8', errors='replace'\\)\\)\")",
+      "Bash(node -e ' *)"
+    ]
+  }
+}
